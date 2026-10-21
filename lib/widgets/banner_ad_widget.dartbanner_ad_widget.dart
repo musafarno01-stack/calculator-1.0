@@ -12,105 +12,96 @@ class BannerAdWidget extends StatefulWidget {
 }
 
 class _BannerAdWidgetState extends State<BannerAdWidget> {
-  BannerAd? _ad;
-  AdSize? _size;
-  bool _failed = false;
+  BannerAd? _banner;
   bool _loading = false;
+  bool _failed = false;
   int? _lastWidth;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadForWidth(
-      MediaQuery.sizeOf(context).width -
-          MediaQuery.paddingOf(context).horizontal,
-    );
+
+    final width = MediaQuery.sizeOf(context).width.truncate();
+    if (width > 0 && width != _lastWidth) {
+      _lastWidth = width;
+      _loadBanner(width);
+    }
   }
 
-  Future<void> _loadForWidth(double width) async {
-    final widthDp = width.floor();
-    if (widthDp <= 0 ||
-        widthDp == _lastWidth ||
-        _loading ||
-        AdConfig.bannerId.isEmpty) {
-      return;
-    }
+  Future<void> _loadBanner(int width) async {
+    if (_loading) return;
 
-    _lastWidth = widthDp;
     _loading = true;
+    final previous = _banner;
+    _banner = null;
+    previous?.dispose();
 
-    _ad?.dispose();
-    _ad = null;
-    _size = null;
+    if (mounted) setState(() => _failed = false);
 
-    final size =
-        await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
-      widthDp,
-    );
+    try {
+      final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
+      if (!mounted || size == null || _lastWidth != width) return;
 
-    if (!mounted) return;
+      final ad = BannerAd(
+        adUnitId: AdConfig.bannerId,
+        size: size,
+        request: const AdRequest(),
+        listener: BannerAdListener(
+          onAdLoaded: (loadedAd) {
+            if (!mounted || _lastWidth != width) {
+              loadedAd.dispose();
+              return;
+            }
+            setState(() {
+              _banner = loadedAd as BannerAd;
+              _failed = false;
+            });
+          },
+          onAdFailedToLoad: (failedAd, error) {
+            debugPrint('Banner failed to load: $error');
+            failedAd.dispose();
+            if (mounted) {
+              setState(() {
+                _banner = null;
+                _failed = true;
+              });
+            }
+          },
+        ),
+      );
 
-    if (size == null) {
-      setState(() {
-        _loading = false;
-        _failed = true;
-      });
-      return;
+      await ad.load();
+    } catch (error) {
+      debugPrint('Could not create banner: $error');
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      _loading = false;
     }
-
-    final banner = BannerAd(
-      adUnitId: AdConfig.bannerId,
-      size: size,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          if (!mounted) {
-            ad.dispose();
-            return;
-          }
-          setState(() {
-            _ad = ad as BannerAd;
-            _size = size;
-            _loading = false;
-            _failed = false;
-          });
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          if (!mounted) return;
-          setState(() {
-            _ad = null;
-            _size = null;
-            _loading = false;
-            _failed = true;
-          });
-        },
-      ),
-    );
-
-    _ad = banner;
-    banner.load();
   }
 
   @override
   Widget build(BuildContext context) {
-    final ad = _ad;
-    final size = _size;
+    final ad = _banner;
 
-    if (_failed || ad == null || size == null) {
+    if (ad == null || _failed) {
       return const SizedBox.shrink();
     }
 
-    return SizedBox(
-      width: size.width.toDouble(),
-      height: size.height.toDouble(),
-      child: AdWidget(key: ValueKey(ad), ad: ad),
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: SizedBox(
+          width: ad.size.width.toDouble(),
+          height: ad.size.height.toDouble(),
+          child: AdWidget(ad: ad),
+        ),
+      ),
     );
   }
 
   @override
   void dispose() {
-    _ad?.dispose();
+    _banner?.dispose();
     super.dispose();
   }
 }
