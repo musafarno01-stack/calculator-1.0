@@ -21,14 +21,21 @@ class AdService {
   Future<void> initialize() async {
     if (_disposed || _initialized || _initializing) return;
 
-    if (!AdConfig.useTestAds && !AdConfig.productionConfigured) {
-      debugPrint('AdMob disabled: configure the production App ID first.');
+    if (!AdConfig.useTestAds &&
+        (AdConfig.productionAppId.isEmpty ||
+            AdConfig.productionBannerId.isEmpty ||
+            AdConfig.productionInterstitialId.isEmpty)) {
+      debugPrint(
+        'AdMob disabled: configure production AdMob IDs first.',
+      );
       return;
     }
 
     _initializing = true;
+
     try {
       await MobileAds.instance.initialize();
+
       if (_disposed) return;
 
       _initialized = true;
@@ -56,6 +63,7 @@ class AdService {
             ad.dispose();
             return;
           }
+
           _interstitial = ad;
         },
         onAdFailedToLoad: (error) {
@@ -66,10 +74,6 @@ class AdService {
     );
   }
 
-  /// Call only when the user chooses a non-critical transition,
-  /// such as opening History.
-  ///
-  /// Returns immediately if an ad is not eligible or unavailable.
   Future<void> showOnHistoryTransition() async {
     if (_disposed || !_initialized) return;
     if (_successfulCalculations < _minimumCalculations) return;
@@ -83,6 +87,7 @@ class AdService {
     }
 
     final ad = _interstitial;
+
     if (ad == null) {
       _preloadInterstitial();
       return;
@@ -92,7 +97,9 @@ class AdService {
     final completer = Completer<void>();
 
     void finish() {
-      if (!completer.isCompleted) completer.complete();
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
     }
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
