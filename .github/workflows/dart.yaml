@@ -31,26 +31,17 @@ jobs:
           flutter-version: "3.41.0"
           cache: true
 
+      - name: Regenerate missing Android project files
+        run: flutter create --platforms=android .
+
+      - name: Verify Android Gradle files
+        run: |
+          find android -maxdepth 4 -type f -print
+          test -f android/app/build.gradle -o -f android/app/build.gradle.kts
+          test -f android/gradlew
+
       - name: Get packages
         run: flutter pub get
-
-      - name: Check Android project files
-        run: |
-          echo "Android project files:"
-          find android -maxdepth 5 -type f -print
-          echo "Checking app Gradle files:"
-          ls -l android/app/build.gradle android/app/build.gradle.kts 2>&1 || true
-          echo "Checking root Gradle files:"
-          ls -l android/build.gradle android/build.gradle.kts 2>&1 || true
-
-      - name: Diagnose Android manifest
-        run: |
-          echo "Checking Android manifest files..."
-          find android -name AndroidManifest.xml -print
-          echo "Checking app manifest contents..."
-          cat android/app/src/main/AndroidManifest.xml
-          echo "Checking legacy embedding references..."
-          grep -RInE 'io\.flutter\.app\.|PluginRegistry\.Registrar|flutterEmbedding.*1' android || true
 
       - name: Build debug APK
         run: flutter build apk --debug
