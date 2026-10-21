@@ -1,86 +1,128 @@
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../config/ad_config.dart';
 
 class AdService {
-  InterstitialAd? _interstitial;
-  DateTime? _lastShown;
-  int _completedCalculations = 0;
-  bool _loading = false;
+  bool _initialized = false;
+  bool _initializing = false;
+  bool _disposed = false;
 
-  static const _minimumCalculations = 8;
-  static const _minimumInterval = Duration(minutes: 3);
+  InterstitialAd? _interstitial;
+  int _successfulCalculations = 0;
+  DateTime? _lastInterstitialTime;
+
+  static const int _minimumCalculations = 5;
+  static const Duration _minimumAdInterval = Duration(minutes: 3);
 
   Future<void> initialize() async {
-    if (kIsWeb) return;
-    await MobileAds.instance.initialize();
-    preloadInterstitial();
-  }
+    if (_disposed || _initialized || _initializing) return;
 
-  void recordSuccessfulCalculation() {
-    _completedCalculations++;
-  }
-
-  void preloadInterstitial() {
-    if (_loading || _interstitial != null || AdConfig.interstitialId.isEmpty) {
+    if (!AdConfig.useTestAds && !AdConfig.productionConfigured) {
+      debugPrint('AdMob disabled: configure the production App ID first.');
       return;
     }
 
-    _loading = true;
+    _initializing = true;
+    try {
+      await MobileAds.instance.initialize();
+      if (_disposed) return;
+
+      _initialized = true;
+      _preloadInterstitial();
+    } catch (error) {
+      debugPrint('AdMob initialization failed: $error');
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  void recordSuccessfulCalculation() {
+    _successfulCalculations++;
+  }
+
+  void _preloadInterstitial() {
+    if (_disposed || !_initialized || _interstitial != null) return;
+
     InterstitialAd.load(
       adUnitId: AdConfig.interstitialId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
-          _loading = false;
+          if (_disposed) {
+            ad.dispose();
+            return;
+          }
           _interstitial = ad;
         },
-        onAdFailedToLoad: (_) {
-          _loading = false;
+        onAdFailedToLoad: (error) {
+          debugPrint('Interstitial failed to load: $error');
           _interstitial = null;
         },
       ),
     );
   }
 
-  /// Call only on a non-critical transition, never on every equals press.
-  /// Navigation should proceed whether the ad is available or not.
+  /// Call only when the user chooses a non-critical transition,
+  /// such as opening History.
+  ///
+  /// Returns immediately if an ad is not eligible or unavailable.
   Future<void> showOnHistoryTransition() async {
-    final now = DateTime.now();
-    final last = _lastShown;
+    if (_disposed || !_initialized) return;
+    if (_successfulCalculations < _minimumCalculations) return;
 
-    if (_completedCalculations < _minimumCalculations ||
-        (last != null && now.difference(last) < _minimumInterval)) {
+    final now = DateTime.now();
+    final previous = _lastInterstitialTime;
+
+    if (previous != null &&
+        now.difference(previous) < _minimumAdInterval) {
       return;
     }
 
     final ad = _interstitial;
     if (ad == null) {
-      preloadInterstitial();
+      _preloadInterstitial();
       return;
     }
 
     _interstitial = null;
-    _lastShown = now;
-    _completedCalculations = 0;
+    final completer = Completer<void>();
+
+    void finish() {
+      if (!completer.isCompleted) completer.complete();
+    }
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (closedAd) {
-        closedAd.dispose();
-        preloadInterstitial();
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _preloadInterstitial();
+        finish();
       },
-      onAdFailedToShowFullScreenContent: (failedAd, _) {
-        failedAd.dispose();
-        preloadInterstitial();
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        debugPrint('Interstitial show failed: $error');
+        ad.dispose();
+        _preloadInterstitial();
+        finish();
       },
     );
 
-    await ad.show();
+    _lastInterstitialTime = now;
+
+    try {
+      ad.show();
+      await completer.future;
+    } catch (error) {
+      debugPrint('Interstitial error: $error');
+      ad.dispose();
+      _preloadInterstitial();
+    }
   }
 
   void dispose() {
+    _disposed = true;
     _interstitial?.dispose();
     _interstitial = null;
   }
