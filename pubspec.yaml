@@ -1,3 +1,4 @@
+
 name: smart_calculator
 description: A responsive Android calculator with local history and AdMob integration.
 publish_to: 'none'
@@ -17,6 +18,14 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon.png"
 
 flutter:
   uses-material-design: true
