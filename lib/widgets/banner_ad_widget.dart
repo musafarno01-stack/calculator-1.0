@@ -33,17 +33,22 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     if (_loading) return;
 
     _loading = true;
+
     final previous = _banner;
     _banner = null;
     previous?.dispose();
 
-    if (mounted) setState(() => _failed = false);
+    if (mounted) {
+      setState(() => _failed = false);
+    }
 
     try {
       final size =
           await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
 
-      if (!mounted || size == null || _lastWidth != width) return;
+      if (!mounted || size == null || _lastWidth != width) {
+        return;
+      }
 
       final ad = BannerAd(
         adUnitId: AdConfig.bannerId,
@@ -60,12 +65,18 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
               _banner = loadedAd as BannerAd;
               _failed = false;
             });
+
+            debugPrint('Banner ad loaded successfully.');
           },
           onAdFailedToLoad: (failedAd, error) {
-            debugPrint('Banner failed to load: $error');
+            debugPrint(
+              'Banner failed to load: '
+              '${error.code} - ${error.message}',
+            );
+
             failedAd.dispose();
 
-            if (mounted) {
+            if (mounted && _lastWidth == width) {
               setState(() {
                 _banner = null;
                 _failed = true;
@@ -76,11 +87,20 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       );
 
       await ad.load();
-    } catch (error) {
+    } catch (error, stackTrace) {
       debugPrint('Could not create banner: $error');
-      if (mounted) setState(() => _failed = true);
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        setState(() => _failed = true);
+      }
     } finally {
       _loading = false;
+
+      // Retry if the screen width changed while loading.
+      if (mounted && _lastWidth != width && _lastWidth != null) {
+        _loadBanner(_lastWidth!);
+      }
     }
   }
 
