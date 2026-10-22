@@ -34,26 +34,19 @@ jobs:
       - name: Regenerate missing Android project files
         run: flutter create --platforms=android .
 
-      - name: Verify Android Gradle files
-        run: |
-          find android -maxdepth 4 -type f -print
-          test -f android/app/build.gradle -o -f android/app/build.gradle.kts
-          test -f android/gradlew
-
       - name: Get packages
         run: flutter pub get
 
-      - name: Build debug APK
+      - name: Build release APK with my AdMob IDs
         run: |
-          flutter build apk --debug \
+          flutter build apk --release \
             --dart-define=USE_TEST_ADS=false \
             --dart-define=ADMOB_ANDROID_APP_ID=ca-app-pub-9045925293510194~1561102409
 
-      - name: Upload APK
-        if: success()
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: calculator-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: calculator-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
