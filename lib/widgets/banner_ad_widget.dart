@@ -1,107 +1,54 @@
 
-import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+abstract final class AdConfig {
+  // Google's official Android sample App ID (testing only).
+  static const String androidTestAppId =
+      'ca-app-pub-3940256099942544~3347511713';
 
-import '../config/ad_config.dart';
+  // Google's official Android sample ad unit IDs (testing only).
+  static const String androidTestBannerId =
+      'ca-app-pub-3940256099942544/6300978111';
 
-class BannerAdWidget extends StatefulWidget {
-  const BannerAdWidget({super.key});
+  static const String androidTestInterstitialId =
+      'ca-app-pub-3940256099942544/1033173712';
 
-  @override
-  State<BannerAdWidget> createState() => _BannerAdWidgetState();
-}
+  static const String androidTestNativeId =
+      'ca-app-pub-3940256099942544/2247696110';
 
-class _BannerAdWidgetState extends State<BannerAdWidget> {
-  BannerAd? _banner;
-  bool _loading = false;
-  bool _failed = false;
-  int? _lastWidth;
+  // Your AdMob Android App ID.
+  // Obtain this from AdMob: Apps > App settings.
+  // It is different from your ad unit IDs.
+  static const String productionAppId = String.fromEnvironment(
+    'ADMOB_ANDROID_APP_ID',
+  );
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  // YOUR PRODUCTION AD UNIT IDs — unchanged.
+  static const String productionBannerId =
+      'ca-app-pub-9045925293510194/5601253910';
 
-    final width = MediaQuery.sizeOf(context).width.truncate();
-    if (width > 0 && width != _lastWidth) {
-      _lastWidth = width;
-      _loadBanner(width);
-    }
-  }
+  static const String productionNativeId =
+      'ca-app-pub-9045925293510194/2514171557';
 
-  Future<void> _loadBanner(int width) async {
-    if (_loading) return;
+  static const String productionInterstitialId =
+      'ca-app-pub-9045925293510194/4667446198';
 
-    _loading = true;
-    final previous = _banner;
-    _banner = null;
-    previous?.dispose();
+  // Safe default: test ads enabled.
+  // Set USE_TEST_ADS=false for a production build.
+  static const bool useTestAds = bool.fromEnvironment(
+    'USE_TEST_ADS',
+    defaultValue: true,
+  );
 
-    if (mounted) setState(() => _failed = false);
+  static String get appId =>
+      useTestAds ? androidTestAppId : productionAppId;
 
-    try {
-      final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
-      if (!mounted || size == null || _lastWidth != width) return;
+  static String get bannerId =>
+      useTestAds ? androidTestBannerId : productionBannerId;
 
-      final ad = BannerAd(
-        adUnitId: AdConfig.bannerId,
-        size: size,
-        request: const AdRequest(),
-        listener: BannerAdListener(
-          onAdLoaded: (loadedAd) {
-            if (!mounted || _lastWidth != width) {
-              loadedAd.dispose();
-              return;
-            }
-            setState(() {
-              _banner = loadedAd as BannerAd;
-              _failed = false;
-            });
-          },
-          onAdFailedToLoad: (failedAd, error) {
-            debugPrint('Banner failed to load: $error');
-            failedAd.dispose();
-            if (mounted) {
-              setState(() {
-                _banner = null;
-                _failed = true;
-              });
-            }
-          },
-        ),
-      );
+  static String get nativeId =>
+      useTestAds ? androidTestNativeId : productionNativeId;
 
-      await ad.load();
-    } catch (error) {
-      debugPrint('Could not create banner: $error');
-      if (mounted) setState(() => _failed = true);
-    } finally {
-      _loading = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ad = _banner;
-
-    if (ad == null || _failed) {
-      return const SizedBox.shrink();
-    }
-
-    return SafeArea(
-      top: false,
-      child: Center(
-        child: SizedBox(
-          width: ad.size.width.toDouble(),
-          height: ad.size.height.toDouble(),
-          child: AdWidget(ad: ad),
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _banner?.dispose();
-    super.dispose();
-  }
+  static String get interstitialId =>
+      useTestAds
+          ? androidTestInterstitialId
+          : productionInterstitialId;
 }
