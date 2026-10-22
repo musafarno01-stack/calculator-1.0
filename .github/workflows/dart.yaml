@@ -44,13 +44,16 @@ jobs:
         run: flutter pub get
 
       - name: Build debug APK
-        run: flutter build apk --debug
+        run: |
+          flutter build apk --debug \
+            --dart-define=USE_TEST_ADS=false \
+            --dart-define=ADMOB_ANDROID_APP_ID=ca-app-pub-9045925293510194~1561102409
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: smart-calculator-debug-apk
+          name: calculator-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
