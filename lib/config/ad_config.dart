@@ -31,7 +31,7 @@ abstract final class AdConfig {
   // Test ads remain enabled unless explicitly disabled.
   static const bool useTestAds = bool.fromEnvironment(
     'USE_TEST_ADS',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   static String get appId =>
