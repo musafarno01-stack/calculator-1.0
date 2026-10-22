@@ -307,7 +307,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                     child: CalculatorKeypad(onKey: _key),
                   ),
                 ),
-                BannerAdWidget(),
+                const BannerAdWidget(),
               ],
             );
           },
