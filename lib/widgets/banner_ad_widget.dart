@@ -1,54 +1,112 @@
 
-abstract final class AdConfig {
-  // Google's official Android sample App ID (testing only).
-  static const String androidTestAppId =
-      'ca-app-pub-3940256099942544~3347511713';
+import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-  // Google's official Android sample ad unit IDs (testing only).
-  static const String androidTestBannerId =
-      'ca-app-pub-3940256099942544/6300978111';
+import '../config/ad_config.dart';
 
-  static const String androidTestInterstitialId =
-      'ca-app-pub-3940256099942544/1033173712';
+class BannerAdWidget extends StatefulWidget {
+  const BannerAdWidget({super.key});
 
-  static const String androidTestNativeId =
-      'ca-app-pub-3940256099942544/2247696110';
+  @override
+  State<BannerAdWidget> createState() => _BannerAdWidgetState();
+}
 
-  // Your AdMob Android App ID.
-  // Obtain this from AdMob: Apps > App settings.
-  // It is different from your ad unit IDs.
-  static const String productionAppId = String.fromEnvironment(
-    'ADMOB_ANDROID_APP_ID',
-  );
+class _BannerAdWidgetState extends State<BannerAdWidget> {
+  BannerAd? _banner;
+  bool _loading = false;
+  bool _failed = false;
+  int? _lastWidth;
 
-  // YOUR PRODUCTION AD UNIT IDs — unchanged.
-  static const String productionBannerId =
-      'ca-app-pub-9045925293510194/5601253910';
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
 
-  static const String productionNativeId =
-      'ca-app-pub-9045925293510194/2514171557';
+    final width = MediaQuery.sizeOf(context).width.truncate();
 
-  static const String productionInterstitialId =
-      'ca-app-pub-9045925293510194/4667446198';
+    if (width > 0 && width != _lastWidth) {
+      _lastWidth = width;
+      _loadBanner(width);
+    }
+  }
 
-  // Safe default: test ads enabled.
-  // Set USE_TEST_ADS=false for a production build.
-  static const bool useTestAds = bool.fromEnvironment(
-    'USE_TEST_ADS',
-    defaultValue: true,
-  );
+  Future<void> _loadBanner(int width) async {
+    if (_loading) return;
 
-  static String get appId =>
-      useTestAds ? androidTestAppId : productionAppId;
+    _loading = true;
+    final previous = _banner;
+    _banner = null;
+    previous?.dispose();
 
-  static String get bannerId =>
-      useTestAds ? androidTestBannerId : productionBannerId;
+    if (mounted) setState(() => _failed = false);
 
-  static String get nativeId =>
-      useTestAds ? androidTestNativeId : productionNativeId;
+    try {
+      final size =
+          await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
 
-  static String get interstitialId =>
-      useTestAds
-          ? androidTestInterstitialId
-          : productionInterstitialId;
+      if (!mounted || size == null || _lastWidth != width) return;
+
+      final ad = BannerAd(
+        adUnitId: AdConfig.bannerId,
+        size: size,
+        request: const AdRequest(),
+        listener: BannerAdListener(
+          onAdLoaded: (loadedAd) {
+            if (!mounted || _lastWidth != width) {
+              loadedAd.dispose();
+              return;
+            }
+
+            setState(() {
+              _banner = loadedAd as BannerAd;
+              _failed = false;
+            });
+          },
+          onAdFailedToLoad: (failedAd, error) {
+            debugPrint('Banner failed to load: $error');
+            failedAd.dispose();
+
+            if (mounted) {
+              setState(() {
+                _banner = null;
+                _failed = true;
+              });
+            }
+          },
+        ),
+      );
+
+      await ad.load();
+    } catch (error) {
+      debugPrint('Could not create banner: $error');
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      _loading = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ad = _banner;
+
+    if (ad == null || _failed) {
+      return const SizedBox.shrink();
+    }
+
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: SizedBox(
+          width: ad.size.width.toDouble(),
+          height: ad.size.height.toDouble(),
+          child: AdWidget(ad: ad),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _banner?.dispose();
+    super.dispose();
+  }
 }
