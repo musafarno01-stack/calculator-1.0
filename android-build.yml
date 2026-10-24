@@ -38,6 +38,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Generate Android launcher icons
+        run: dart run flutter_launcher_icons
+
       - name: Format check
         run: dart format --output=none --set-exit-if-changed lib test
 
